@@ -21,6 +21,12 @@
       return Math.max(min, Math.min(max, value));
     }
 
+    function wrapRadians(angle) {
+      let wrapped = (angle + Math.PI) % TAU;
+      if (wrapped < 0) wrapped += TAU;
+      return wrapped - Math.PI;
+    }
+
     function getOpacity() {
       const opacity = adapter.getOpacity ? Number(adapter.getOpacity()) : 0.74;
       return clamp(Number.isFinite(opacity) ? opacity : 0.74, 0, 1);
@@ -51,20 +57,22 @@
     function project(point, w, h) {
       const cx = w * 0.5;
       const cy = h * 0.5;
-      const cosX = Math.cos(view.tilt);
-      const sinX = Math.sin(view.tilt);
-      const y1 = point.y * cosX - point.z * sinX;
-      const z1 = point.y * sinX + point.z * cosX;
-      const cosZ = Math.cos(view.spin);
-      const sinZ = Math.sin(view.spin);
-      const x2 = point.x * cosZ - y1 * sinZ;
-      const y2 = point.x * sinZ + y1 * cosZ;
+      const cosS = Math.cos(view.spin);
+      const sinS = Math.sin(view.spin);
+      const x1 = point.x * cosS - point.z * sinS;
+      const z1 = point.x * sinS + point.z * cosS;
+      const y1 = point.y;
+      const cosT = Math.cos(view.tilt);
+      const sinT = Math.sin(view.tilt);
+      const x2 = x1;
+      const y2 = y1 * cosT - z1 * sinT;
+      const z2 = y1 * sinT + z1 * cosT;
       const scale = Math.min(w / 3.55, h / 2.52);
-      const perspective = 1 / (1.18 - z1 * 0.11);
+      const perspective = 1 / (1.18 - z2 * 0.11);
       return {
         x: cx + x2 * scale * perspective,
         y: cy + y2 * scale * perspective,
-        z: z1
+        z: z2
       };
     }
 
@@ -281,8 +289,8 @@
       const dy = event.clientY - view.dragY;
       view.dragX = event.clientX;
       view.dragY = event.clientY;
-      view.spin += dx * 0.009;
-      view.tilt = clamp(view.tilt + dy * 0.007, -1.38, 0.18);
+      view.spin = wrapRadians(view.spin + dx * 0.009);
+      view.tilt = wrapRadians(view.tilt + dy * 0.007);
       draw();
       event.preventDefault();
     }
