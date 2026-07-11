@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="dhuenut.svg">
+<title>DHuenut</title>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Syne+Mono&display=swap");
+
+:root {
+  color-scheme: dark;
+  --space-0: #150a21;
+  --space-1: #211039;
+  --space-2: #34164b;
+  --panel: #3a1d4feb;
+  --panel-2: #47235feb;
+  --panel-3: #1c0d29;
+  --well: #13091e;
+  --line: #a56c99;
+  --line-soft: #b879a344;
+  --ink: #fff1d7;
+  --muted: #dfbed0;
+  --faint: #a78aa7;
+  --cyan: #44e4d2;
+  --magenta: #ff65b8;
+  --lime: #d8fb59;
+  --amber: #ffc85f;
+  --blue: #8fa1ff;
+  --danger: #ff7a67;
+  --sugar: #fff3bf;
+  --radius: 24px 17px 27px 19px;
+  --radius-tight: 15px 11px 17px 12px;
+  --mono: "Syne Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --sans: "M PLUS Rounded 1c", ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --display: "Bagel Fat One", "M PLUS Rounded 1c", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    conic-gradient(from 205deg at 82% -8%, #ff65b83a, #44e4d22e, #d8fb5924, transparent 38%, transparent 100%),
+    linear-gradient(145deg, #150a21 0%, #26113a 42%, #112b31 72%, #1b0d2c 100%);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  isolation: isolate;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  z-index: 0;
+  opacity: 0.34;
+  background:
+    linear-gradient(112deg, transparent 0 21%, #ff65b833 22%, #ffc85f24 24%, transparent 30% 100%),
+    linear-gradient(64deg, transparent 0 58%, #44e4d229 61%, #8fa1ff22 64%, transparent 71% 100%),
+    conic-gradient(from 78deg at 18% 115%, transparent 0 18%, #d8fb5930 23%, #ff65b824 28%, transparent 34% 100%);
+  filter: saturate(1.18);
+}
+
+body::after {
+  z-index: 1000;
+  opacity: 0.08;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='148' height='148'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.74' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.72'/%3E%3C/svg%3E");
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.app-shell {
+  width: min(1560px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 18px 0 42px;
+  position: relative;
+  z-index: 1;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brand img {
+  width: 44px;
+  height: 44px;
+  padding: 5px;
+  border: 1px solid #ffc85f91;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, #fff3bf, #ff65b8 38%, #34164b 76%);
+  box-shadow:
+    inset 0 1px 0 #fff3bf7d,
+    0 0 0 2px #150a21,
+    0 0 22px #ff65b859,
+    0 0 34px #44e4d22e;
+}
+
+.brand h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 3rem;
+  line-height: 0.9;
+  letter-spacing: 0;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background:
+    linear-gradient(180deg, #fff3bf 0%, #ffc85f 22%, #ff65b8 49%, #8fa1ff 72%, #44e4d2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter:
+    drop-shadow(0 2px 0 #5c1c4a)
+    drop-shadow(0 0 16px #ff65b854);
+}
+
+.brand p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0;
+}
+
+.top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.94fr) minmax(460px, 1.36fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, #47235fe8 0%, #2d173ee8 52%, #1a0c28f0 100%),
+    linear-gradient(135deg, #ff65b81f, #44e4d216 52%, #d8fb5912);
+  box-shadow:
+    0 18px 56px #08040e8f,
+    inset 0 1px 0 #fff3bf32,
+    inset 0 -22px 44px #150a217a;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid #fff3bf1f;
+  border-radius: 18px 12px 21px 14px;
+  pointer-events: none;
+}
+
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(122deg, #fff3bf1c 0 1px, transparent 1px 28%),
+    linear-gradient(305deg, transparent 0 54%, #44e4d213 56%, transparent 62%);
+  opacity: 0.72;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  border-bottom: 1px solid #ffc85f35;
+  position: relative;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, #ff65b81f, transparent 42%, #44e4d214),
+    linear-gradient(180deg, #fff3bf0d, transparent);
+}
+
+.panel-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px #ff65b843;
+}
+
+.panel-title b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.1em;
+  margin-right: 4px;
+  padding: 2px 5px;
+  border: 1px solid #ffc85f73;
+  border-radius: 999px;
+  color: #25102f;
+  background:
+    radial-gradient(circle at 35% 28%, #fff3bf, #ffc85f 45%, #ff65b8 100%);
+  box-shadow: 0 0 13px #ffc85f47;
+  font-weight: 700;
+}
+
+.panel-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  padding: 2px;
+  border: 1px solid #ffc85f70;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 24%, #fff3bf, #ff65b8 46%, #25102f 100%);
+  box-shadow: 0 0 12px #ff65b842;
+  vertical-align: -5px;
+}
+
+.panel-body {
+  padding: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.editor-panel {
+  position: sticky;
+  top: 12px;
+}
+
+.curve-wrap {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 24px;
+  gap: 9px;
+}
+
+.axis-y,
+.axis-x {
+  border: 1px solid #fff3bf30;
+  border-radius: 999px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  box-shadow:
+    inset 0 1px 0 #fff3bf40,
+    0 0 14px #44e4d21b;
+}
+
+.axis-y.dragging,
+.axis-x.dragging {
+  cursor: grabbing;
+}
+
+.axis-y {
+  background: linear-gradient(
+    to bottom,
+    hsl(300 90% 54%),
+    hsl(240 90% 57%),
+    hsl(180 90% 48%),
+    hsl(120 82% 49%),
+    hsl(60 92% 54%),
+    hsl(0 92% 56%)
+  );
+}
+
+.axis-x {
+  grid-column: 2;
+  background: linear-gradient(
+    to right,
+    hsl(0 92% 56%),
+    hsl(60 92% 54%),
+    hsl(120 82% 49%),
+    hsl(180 90% 48%),
+    hsl(240 90% 57%),
+    hsl(300 90% 54%),
+    hsl(360 92% 56%)
+  );
+}
+
+.curve-frame {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse at 50% 8%, #fff3bf14, transparent 48%),
+    linear-gradient(150deg, #211039, #13091e 58%, #102c31);
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 #fff3bf38,
+    inset 0 0 44px #44e4d214,
+    0 0 0 3px #150a21,
+    0 14px 34px #08040e82;
+}
+
+#curveCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.torus-frame {
+  position: relative;
+  margin-top: 12px;
+  border: 1px solid #ffc85f48;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse at 48% 22%, #fff3bf14, transparent 45%),
+    conic-gradient(from 230deg at 50% 50%, #ff65b81f, #44e4d21a, #d8fb5918, #8fa1ff1b, #ff65b81f),
+    linear-gradient(155deg, #28113b, #13091e 62%, #102c31);
+  box-shadow:
+    inset 0 1px 0 #fff3bf3a,
+    inset 0 -24px 44px #08040e85,
+    0 0 0 3px #150a21,
+    0 12px 30px #08040e66;
+  overflow: hidden;
+}
+
+.torus-frame::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px solid #fff3bf17;
+  border-radius: 19px 12px 22px 15px;
+  pointer-events: none;
+}
+
+.torus-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(110deg, transparent 0 26%, #fff3bf12 28%, transparent 34% 100%),
+    radial-gradient(circle at 18% 18%, #ff65b81a, transparent 24%),
+    radial-gradient(circle at 82% 72%, #44e4d218, transparent 26%);
+}
+
+#torusCanvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  cursor: grab;
+  touch-action: none;
+}
+
+#torusCanvas.dragging {
+  cursor: grabbing;
+}
+
+.torus-controls {
+  display: grid;
+  gap: 6px;
+  padding: 0 13px 13px;
+  position: relative;
+  z-index: 1;
+}
+
+.torus-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.torus-controls output {
+  color: var(--lime);
+  text-shadow: 0 0 9px #d8fb5942;
+}
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.readout {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #ffc85f4f;
+  border-radius: var(--radius-tight);
+  background:
+    linear-gradient(180deg, #fff3bf12, transparent 36%),
+    linear-gradient(135deg, #301740, #180b25);
+  box-shadow:
+    inset 0 1px 0 #fff3bf24,
+    0 8px 18px #08040e55;
+}
+
+.readout span {
+  display: block;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.61rem;
+  text-transform: uppercase;
+}
+
+.readout b {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.swatch {
+  height: 36px;
+  border: 1px solid #fff3bf5c;
+  border-radius: var(--radius);
+  background: #5b3461;
+  box-shadow:
+    inset 0 1px 0 #fff3bf52,
+    inset 0 -10px 18px #150a2155,
+    0 8px 16px #08040e4f;
+}
+
+.control-stack {
+  display: grid;
+  gap: 11px;
+  margin-top: 13px;
+}
+
+.control-row,
+.preset-row,
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+  min-width: 104px;
+  flex: 1 1 130px;
+}
+
+.field.compact {
+  min-width: 82px;
+  flex-basis: 90px;
+}
+
+.field.wide {
+  flex-basis: 190px;
+}
+
+label {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #b879a36f;
+  border-radius: var(--radius-tight);
+  background:
+    linear-gradient(180deg, #fff3bf12, transparent 42%),
+    #150a21;
+  color: var(--ink);
+  padding: 8px 10px;
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 #fff3bf24,
+    inset 0 -8px 14px #08040e55;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--cyan);
+  box-shadow:
+    0 0 0 3px #44e4d229,
+    inset 0 1px 0 #fff3bf35;
+}
+
+input[type="range"] {
+  padding: 0;
+  accent-color: var(--magenta);
+  box-shadow: none;
+}
+
+.button,
+.icon-button {
+  min-height: 36px;
+  border: 1px solid #ffc85f5e;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 28% 24%, #fff3bf42, transparent 36%),
+    linear-gradient(180deg, #5b2a66, #2a143a 64%, #180b25);
+  color: var(--ink);
+  padding: 8px 13px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 #fff3bf38,
+    inset 0 -10px 16px #150a2166,
+    0 8px 16px #08040e55;
+  transition: border-color 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+
+.button:hover,
+.icon-button:hover {
+  border-color: var(--cyan);
+  color: var(--sugar);
+  box-shadow:
+    inset 0 1px 0 #fff3bf50,
+    inset 0 -10px 16px #150a2166,
+    0 0 18px #44e4d233,
+    0 8px 16px #08040e55;
+  transform: translateY(-1px);
+}
+
+.button.primary {
+  border-color: #fff3bf8f;
+  color: #24102d;
+  background:
+    radial-gradient(circle at 28% 22%, #fff8ce 0 12%, transparent 34%),
+    linear-gradient(180deg, #bafff7, #44e4d2 46%, #38b9b2 100%);
+  font-weight: 800;
+}
+
+.button.magenta {
+  border-color: #fff3bf8a;
+  background:
+    radial-gradient(circle at 30% 24%, #fff3bf75 0 12%, transparent 36%),
+    linear-gradient(180deg, #ff95cc, #ff65b8 54%, #bb2f7f);
+  color: #2a1028;
+  font-weight: 800;
+}
+
+.button.ghost {
+  background:
+    linear-gradient(180deg, #fff3bf0d, transparent 45%),
+    #211039;
+}
+
+.preset-row .button {
+  flex: 1 1 96px;
+}
+
+.media-panel .panel-body {
+  padding: 0;
+}
+
+.drop-zone {
+  min-height: 300px;
+  padding: 14px;
+}
+
+.drop-zone.loaded {
+  min-height: 0;
+}
+
+.drop-prompt {
+  min-height: 270px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border: 1px dashed #ffc85f78;
+  border-radius: var(--radius);
+  background:
+    conic-gradient(from 245deg at 52% 8%, #ff65b82c, #44e4d21d, #d8fb5920, #ff65b82c),
+    linear-gradient(155deg, #28113b, #13091e 56%, #10313a);
+  box-shadow:
+    inset 0 1px 0 #fff3bf3d,
+    inset 0 -24px 42px #08040e78,
+    0 12px 28px #08040e5c;
+}
+
+.drop-prompt strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 3rem;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background: linear-gradient(180deg, #fff3bf, #ffc85f 24%, #ff65b8 62%, #8fa1ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 3px 0 #5c1c4a) drop-shadow(0 0 15px #ff65b84c);
+}
+
+.drop-prompt span {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.drop-zone.drag-over .drop-prompt {
+  border-color: var(--cyan);
+  box-shadow:
+    0 0 0 3px #44e4d22b,
+    inset 0 1px 0 #fff3bf4d,
+    0 0 28px #44e4d23a;
+}
+
+.workspace {
+  display: none;
+}
+
+.canvas-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.canvas-cell {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #ffc85f45;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, #fff3bf0f, transparent 40%),
+    linear-gradient(145deg, #2a143a, #140a21 72%);
+  box-shadow:
+    inset 0 1px 0 #fff3bf25,
+    0 12px 24px #08040e57;
+}
+
+.canvas-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.canvas-cell canvas {
+  display: block;
+  width: 100%;
+  max-height: 62vh;
+  object-fit: contain;
+  border: 1px solid #b879a36a;
+  border-radius: var(--radius);
+  background: #13091e;
+  cursor: crosshair;
+  box-shadow:
+    inset 0 0 0 1px #fff3bf12,
+    0 0 0 2px #150a21,
+    0 12px 28px #08040e78;
+}
+
+.pixel-info {
+  min-height: 30px;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border: 1px solid #b879a348;
+  border-radius: var(--radius-tight);
+  color: var(--muted);
+  background:
+    linear-gradient(180deg, #fff3bf0d, transparent 42%),
+    #13091e;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pixel-info .chip {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 7px;
+  border: 1px solid #fff3bf80;
+  border-radius: 50%;
+  vertical-align: -2px;
+  box-shadow: 0 0 9px currentColor;
+}
+
+.video-controls {
+  display: none;
+  gap: 9px;
+  align-items: center;
+  padding: 12px 14px 14px;
+  border-top: 1px solid #ffc85f35;
+  background:
+    linear-gradient(90deg, #ff65b817, transparent 52%, #44e4d216);
+}
+
+.video-controls input[type="range"] {
+  flex: 1 1 180px;
+}
+
+.time-label {
+  min-width: 96px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #b879a33e;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, #fff3bf0d, transparent 45%),
+    #1a0c28;
+}
+
+.check-row input {
+  width: 16px;
+  min-height: 16px;
+  accent-color: var(--magenta);
+}
+
+.status {
+  min-height: 18px;
+  color: var(--lime);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-shadow: 0 0 9px #d8fb5942;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 1080px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    width: min(100% - 18px, 1560px);
+  }
+
+  .topbar,
+  .canvas-grid,
+  .readout-grid,
+  .import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    display: grid;
+  }
+
+  .top-actions {
+    justify-content: stretch;
+  }
+
+  .top-actions .button {
+    flex: 1 1 130px;
+  }
+
+  .readout-grid {
+    display: grid;
+  }
+
+  .brand h1,
+  .drop-prompt strong {
+    font-size: 2.35rem;
+  }
+
+  .brand img {
+    width: 40px;
+    height: 40px;
+  }
+}
+</style>
+</head>
+<body>
+<main class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <img src="dhuenut.svg" alt="">
+      <div>
+        <h1>DHuenut</h1>
+        <p>toroidal hue manipulator</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="button primary" id="uploadBtn">Upload</button>
+      <button class="button ghost" id="exportCurveBtn">Curve JSON</button>
+      <button class="button ghost" id="importCurveBtn">Load JSON</button>
+      <button class="button ghost" id="exportCubeBtn">Cube LUT</button>
+      <input id="curveFileInput" class="hidden" type="file" accept="application/json,.json">
+    </div>
+  </header>
+
+  <section class="main-grid">
+    <aside class="panel editor-panel">
+      <div class="panel-head">
+        <p class="panel-title"><b>01</b> Curve</p>
+        <span class="status" id="curveStatus">ready</span>
+      </div>
+      <div class="panel-body">
+        <div class="curve-wrap">
+          <div class="axis-y" id="axisY" aria-label="Drag to pan output axis" title="Drag to pan output axis"></div>
+          <div class="curve-frame">
+            <canvas id="curveCanvas" width="720" height="720"></canvas>
+          </div>
+          <div></div>
+          <div class="axis-x" id="axisX" aria-label="Drag to pan input axis" title="Drag to pan input axis"></div>
+        </div>
+
+        <div class="torus-frame">
+          <canvas id="torusCanvas" width="720" height="405" aria-label="Torus curve view" title="Drag to rotate torus view"></canvas>
+          <div class="torus-controls">
+            <label for="torusOpacityInput">
+              Torus opacity
+              <output id="torusOpacityValue" for="torusOpacityInput">74%</output>
+            </label>
+            <input id="torusOpacityInput" type="range" min="0" max="100" step="1" value="74">
+          </div>
+        </div>
+
+        <div class="readout-grid">
+          <div class="readout">
+            <span>degree</span>
+            <b id="windingBadge">d = 1</b>
+          </div>
+          <div class="readout">
+            <span>slope</span>
+            <b id="slopeReadout">1.00</b>
+          </div>
+          <div class="readout">
+            <span>input</span>
+            <b id="inputReadout">0.0</b>
+          </div>
+          <div class="readout">
+            <span>output</span>
+            <b id="outputReadout">0.0</b>
+          </div>
+        </div>
+
+        <div class="swatches">
+          <div class="swatch" id="inSwatch"></div>
+          <div class="swatch" id="outSwatch"></div>
+        </div>
+
+        <div class="control-stack">
+          <div class="preset-row">
+            <div class="field wide">
+              <label for="presetSelect">Preset</label>
+              <select id="presetSelect">
+                <optgroup label="Core">
+                  <option value="identity">Identity</option>
+                  <option value="invert">Invert</option>
+                  <option value="collapse">Collapse</option>
+                  <option value="double">Double</option>
+                  <option value="sine">Sine</option>
+                </optgroup>
+                <optgroup label="More">
+                  <option value="complement">Complement shift</option>
+                  <option value="triple">Triple wind</option>
+                  <option value="ripple">Ripple</option>
+                  <option value="foldback">Foldback</option>
+                </optgroup>
+              </select>
+            </div>
+            <button class="button" id="applyPresetBtn">Load Preset</button>
+          </div>
+
+          <div class="control-row">
+            <div class="field compact">
+              <label for="rotateAmountInput">Rotate +/-</label>
+              <input id="rotateAmountInput" type="number" step="1" value="30">
+            </div>
+            <button class="button" id="rotateCurveBtn">Hue Rotate</button>
+            <button class="button" id="invertCurveBtn">Hue Invert</button>
+          </div>
+
+          <div class="control-row">
+            <div class="field compact">
+              <label for="degreeInput">Degree</label>
+              <input id="degreeInput" type="number" step="1" value="1">
+            </div>
+            <div class="field wide">
+              <label for="iterationInput">Iterate</label>
+              <input id="iterationInput" type="range" min="0" max="16" step="1" value="1">
+            </div>
+            <div class="field compact">
+              <label for="iterationValue">Count</label>
+              <input id="iterationValue" type="number" min="0" max="64" step="1" value="1">
+            </div>
+          </div>
+
+          <div class="control-row">
+            <div class="field">
+              <label for="colorSpace">Color space</label>
+              <select id="colorSpace">
+                <option value="hsl">HSL</option>
+                <option value="oklch">OKLCH</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="processingBackend">Backend</label>
+              <select id="processingBackend">
+                <option value="auto">Auto GPU</option>
+                <option value="gpu">GPU</option>
+                <option value="cpu">CPU</option>
+              </select>
+            </div>
+            <div class="field compact">
+              <label for="cubeSize">Cube</label>
+              <select id="cubeSize">
+                <option value="17">17</option>
+                <option value="33">33</option>
+              </select>
+            </div>
+          </div>
+          <div class="status" id="backendStatus">Backend: Auto</div>
+        </div>
+      </div>
+
+      <div class="panel-head">
+        <p class="panel-title"><b>02</b><img class="panel-icon" src="../gahuema/gahuema.svg" alt="">GaHueMa import</p>
+      </div>
+      <div class="panel-body">
+        <div class="import-grid">
+          <div class="field">
+            <label for="gMode">Mode</label>
+            <select id="gMode">
+              <option value="add">Add</option>
+              <option value="multiply">Multiply</option>
+              <option value="binomial">Binomial</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="gAnchorHue">Anchor</label>
+            <input id="gAnchorHue" type="number" min="0" max="360" step="1" value="180">
+          </div>
+          <div class="field">
+            <label for="gFactor">Factor</label>
+            <input id="gFactor" type="number" step="0.1" value="35">
+          </div>
+          <div class="field">
+            <label for="gM">M</label>
+            <input id="gM" type="number" step="0.01" value="1">
+          </div>
+          <div class="field">
+            <label for="gP">P</label>
+            <input id="gP" type="number" step="0.01" value="1">
+          </div>
+          <div class="field">
+            <label for="gA">A</label>
+            <input id="gA" type="number" step="0.1" value="0">
+          </div>
+        </div>
+        <div class="control-row" style="margin-top:10px;">
+          <label class="check-row"><input id="gPreventCrossing" type="checkbox" checked> Prevent crossing</label>
+          <button class="button magenta" id="importGahuemaBtn">Import</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="panel media-panel">
+      <div class="panel-head">
+        <p class="panel-title"><b>03</b> Media</p>
+        <div class="control-row">
+          <input id="filenameInput" value="dhuenut-output" aria-label="File name">
+          <span class="status" id="extLabel">.png/.webm</span>
+          <button class="button primary" id="saveBtn">Save</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-prompt" id="dropPrompt">
+            <div>
+              <strong>Drop media</strong>
+              <span>image or video</span>
+            </div>
+          </div>
+          <input type="file" id="imageInput" accept="image/*,video/*" class="hidden">
+          <video id="sourceVideo" playsinline muted crossorigin="anonymous" class="hidden"></video>
+
+          <div id="workspace" class="workspace">
+            <div class="canvas-grid">
+              <div class="canvas-cell">
+                <p class="canvas-label">Original</p>
+                <canvas id="originalCanvas"></canvas>
+                <div id="originalPixelInfo" class="pixel-info">hover pixel</div>
+              </div>
+              <div class="canvas-cell">
+                <p class="canvas-label">Processed</p>
+                <canvas id="modifiedCanvas"></canvas>
+                <div id="modifiedPixelInfo" class="pixel-info">hover pixel</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="videoControls" class="video-controls">
+          <button id="playPauseBtn" class="icon-button" title="Play or pause">Play</button>
+          <input type="range" id="seekBar" min="0" max="1000" value="0" step="1">
+          <span id="timeLabel" class="time-label">0:00 / 0:00</span>
+          <button id="loopBtn" class="icon-button" title="Loop">Loop</button>
+        </div>
+        <div id="exportStatus" class="status" style="padding:0 14px 14px;"></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<script src="torus-view.js"></script>
+<script src="dhuenut.js"></script>
+</body>
+</html>
