@@ -198,12 +198,12 @@ Good demo figures:
 
 ## Validation Log
 
-Last checked after the Hue Histogram Underlay implementation on 2026-07-11:
+Last checked after the URL-Encoded Curve Sharing implementation on 2026-07-11:
 
 - `node --check dhuenut\dhuenut.js` passed.
 - Static DOM ID wiring check passed: every JS `$("id")` reference exists in
   `index.html`.
-- Live browser smoke test was run in this pass (real-time histogram and visual space mapping verified).
+- Live browser smoke test was run in this pass (URL state hashing, history replaceState, and onhashchange verified).
 - No persistent local dev server is required or currently running.
 
 ---
@@ -219,7 +219,7 @@ Last checked after the Hue Histogram Underlay implementation on 2026-07-11:
 - [x] Add reset/undo for curve edits.
 - [ ] Add keyboard controls for selected points.
 - [ ] Improve mobile/touch ergonomics for point editing.
-- [ ] Add URL-encoded curve sharing.
+- [x] Add URL-encoded curve sharing.
 
 ### Curve And Math Work
 

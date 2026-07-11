@@ -286,6 +286,9 @@
     els.curveStatus.textContent = reason;
     drawCurveEditor();
     onParamsChanged();
+    if (reason !== "dragging") {
+      updateUrlHash();
+    }
   }
 
   function setPreset(name) {
@@ -588,6 +591,65 @@
     els.colorSpace.value = "hsl";
     syncCurveInputs();
     markCurveDirty("reset");
+  }
+
+  function serializeStateToHash() {
+    const d = state.curve.degree;
+    const cs = els.colorSpace.value;
+    const it = getIterationCount();
+    const pts = state.curve.points.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(";");
+    return `d=${d}&cs=${cs}&it=${it}&pts=${pts}`;
+  }
+
+  function loadStateFromHash() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return false;
+    const params = new URLSearchParams(hash);
+    const dStr = params.get("d");
+    const csStr = params.get("cs");
+    const itStr = params.get("it");
+    const ptsStr = params.get("pts");
+
+    if (!ptsStr) return false;
+
+    try {
+      const points = ptsStr.split(";").map((pair) => {
+        const [xStr, yStr] = pair.split(",");
+        const x = Number(xStr);
+        const y = Number(yStr);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("bad coords");
+        return { x, y };
+      });
+      if (points.length < 2) return false;
+
+      pushHistory();
+      state.curve.degree = Math.round(Number(dStr) || 0);
+      state.curve.points = points;
+      sortPoints();
+
+      if (itStr) {
+        const itVal = Math.max(0, Math.round(Number(itStr) || 0));
+        els.iterationValue.value = String(itVal);
+        els.iterationInput.value = String(clamp(itVal, Number(els.iterationInput.min), Number(els.iterationInput.max)));
+      }
+      if (csStr === "hsl" || csStr === "oklch") {
+        els.colorSpace.value = csStr;
+      }
+
+      syncCurveInputs();
+      markCurveDirty("url loaded");
+      return true;
+    } catch (e) {
+      console.warn("Failed to load state from hash:", e);
+      return false;
+    }
+  }
+
+  function updateUrlHash() {
+    const newHash = "#" + serializeStateToHash();
+    if (window.location.hash !== newHash) {
+      window.history.replaceState(null, "", newHash);
+    }
   }
 
   function syncCurveInputs() {
@@ -1877,6 +1939,13 @@
       }
     });
 
+    window.addEventListener("hashchange", () => {
+      const currentHash = "#" + serializeStateToHash();
+      if (window.location.hash && window.location.hash !== currentHash) {
+        loadStateFromHash();
+      }
+    });
+
     els.applyPresetBtn.addEventListener("click", () => setPreset(els.presetSelect.value));
 
     els.rotateCurveBtn.addEventListener("click", rotateCurveHue);
@@ -2008,7 +2077,9 @@
     }
     setTorusOpacity((state.torusOpacity || 0.74) * 100);
     setIteration(1);
-    drawCurveEditor();
+    if (!loadStateFromHash()) {
+      drawCurveEditor();
+    }
     setBackendStatus("Backend: Auto");
   }
 
