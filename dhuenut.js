@@ -25,6 +25,13 @@
     activePoint: null,
     dragYShift: 0,
     dragBranch: 0,
+    strengthBasePoints: null,
+    strengthBaseDegree: null,
+    history: {
+      undoStack: [],
+      redoStack: []
+    },
+    hueHistogram: new Float32Array(360),
     baseLut: new Float32Array(LUT_SIZE),
     iteratedLut: new Float32Array(LUT_SIZE),
     curveDirty: true,
@@ -95,7 +102,23 @@
     gP: $("gP"),
     gA: $("gA"),
     gPreventCrossing: $("gPreventCrossing"),
-    importGahuemaBtn: $("importGahuemaBtn")
+    importGahuemaBtn: $("importGahuemaBtn"),
+    dehnTwistPlusBtn: $("dehnTwistPlusBtn"),
+    dehnTwistMinusBtn: $("dehnTwistMinusBtn"),
+    symmetrizeSelect: $("symmetrizeSelect"),
+    symmetrizeBtn: $("symmetrizeBtn"),
+    recenterAmountInput: $("recenterAmountInput"),
+    recenterCurveBtn: $("recenterCurveBtn"),
+    inputRotateCurveBtn: $("inputRotateCurveBtn"),
+    inputInvertCurveBtn: $("inputInvertCurveBtn"),
+    mirrorConjugateBtn: $("mirrorConjugateBtn"),
+    strengthInput: $("strengthInput"),
+    strengthValue: $("strengthValue"),
+    transposeBtn: $("transposeBtn"),
+    undoBtn: $("undoBtn"),
+    redoBtn: $("redoBtn"),
+    resetBtn: $("resetBtn"),
+    showHistogram: $("showHistogram")
   };
 
   const curveCtx = els.curveCanvas.getContext("2d");
@@ -266,6 +289,7 @@
   }
 
   function setPreset(name) {
+    pushHistory();
     const point = (x, y) => ({ x, y });
     const wave = (count, amplitude, cycles = 1) => {
       state.curve.points = [];
@@ -312,6 +336,7 @@
   }
 
   function rotateCurveHue() {
+    pushHistory();
     const amount = Number(els.rotateAmountInput.value);
     if (!Number.isFinite(amount)) {
       els.curveStatus.textContent = "bad rotate amount";
@@ -325,6 +350,7 @@
   }
 
   function invertCurveHue() {
+    pushHistory();
     state.curve.degree = -state.curve.degree;
     state.curve.points = state.curve.points.map((curvePoint) => ({
       x: curvePoint.x,
@@ -332,6 +358,236 @@
     }));
     syncCurveInputs();
     markCurveDirty("hue inverted");
+  }
+
+  function dehnTwist(m) {
+    pushHistory();
+    state.curve.degree += m;
+    state.curve.points = state.curve.points.map((p) => ({
+      x: p.x,
+      y: p.y + m * p.x
+    }));
+    syncCurveInputs();
+    markCurveDirty(`dehn twist ${m > 0 ? "+" : ""}${m}`);
+  }
+
+  function rotateCurveInput(amount) {
+    pushHistory();
+    const a = normalizeAngle(amount);
+    state.curve.points = state.curve.points.map((p) => {
+      let newX = p.x + a;
+      let newY = p.y;
+      if (newX >= 360) {
+        newX -= 360;
+        newY -= 360 * state.curve.degree;
+      }
+      return { x: newX, y: newY };
+    });
+    sortPoints();
+    markCurveDirty(`input rotate ${formatSignedDegrees(amount)}`);
+  }
+
+  function recenterCurve(amount) {
+    pushHistory();
+    const a = normalizeAngle(amount);
+    state.curve.points = state.curve.points.map((p) => {
+      let newX = p.x + a;
+      let newY = p.y + a;
+      if (newX >= 360) {
+        newX -= 360;
+        newY -= 360 * state.curve.degree;
+      }
+      return { x: newX, y: newY };
+    });
+    sortPoints();
+    markCurveDirty(`recenter ${formatSignedDegrees(amount)}`);
+  }
+
+  function invertCurveInput() {
+    pushHistory();
+    const d = state.curve.degree;
+    state.curve.degree = -d;
+    state.curve.points = state.curve.points.map((p) => {
+      if (p.x === 0) {
+        return { x: 0, y: p.y };
+      } else {
+        return { x: 360 - p.x, y: p.y - 360 * d };
+      }
+    });
+    sortPoints();
+    syncCurveInputs();
+    markCurveDirty("input inverted");
+  }
+
+  function mirrorConjugate() {
+    pushHistory();
+    const d = state.curve.degree;
+    state.curve.points = state.curve.points.map((p) => {
+      if (p.x === 0) {
+        return { x: 0, y: -p.y };
+      } else {
+        return { x: 360 - p.x, y: -p.y + 360 * d };
+      }
+    });
+    sortPoints();
+    markCurveDirty("mirror conjugate");
+  }
+
+  function symmetrizeCurve(n) {
+    pushHistory();
+    const d = state.curve.degree;
+    const numPoints = 12;
+    const newPoints = [];
+    const L = 360 / n;
+    for (let i = 0; i < numPoints; i += 1) {
+      const x = (i / numPoints) * 360;
+      let sumY = 0;
+      for (let k = 0; k < n; k += 1) {
+        sumY += sampleLiftUnwrapped(x + k * L) - k * L * d;
+      }
+      newPoints.push({ x, y: sumY / n });
+    }
+    state.curve.points = newPoints;
+    sortPoints();
+    markCurveDirty(`${n}-fold symmetrized`);
+  }
+
+  function adjustStrength(strengthValue) {
+    if (!state.strengthBasePoints) {
+      pushHistory();
+      state.strengthBasePoints = state.curve.points.map((p) => ({ x: p.x, y: p.y }));
+      state.strengthBaseDegree = state.curve.degree;
+    }
+    const s = strengthValue / 100;
+    const d = state.strengthBaseDegree;
+    state.curve.points = state.strengthBasePoints.map((p) => {
+      const yDeviation = p.y - d * p.x;
+      return {
+        x: p.x,
+        y: d * p.x + s * yDeviation
+      };
+    });
+    markCurveDirty("strength adjust");
+  }
+
+  function transposeCurve() {
+    const d = state.curve.degree;
+    if (Math.abs(d) !== 1) {
+      els.curveStatus.textContent = "transpose requires degree +/-1";
+      return;
+    }
+    let monotone = true;
+    const sign = Math.sign(d);
+    for (let i = 0; i < 360; i += 5) {
+      const slope = estimateSlope(i);
+      if (slope * sign <= 0) {
+        monotone = false;
+        break;
+      }
+    }
+    if (!monotone) {
+      els.curveStatus.textContent = "curve must be strictly monotone";
+      return;
+    }
+    pushHistory();
+
+    state.curve.points = state.curve.points.map((p) => {
+      const k = Math.floor(p.y / 360);
+      let newX = p.y - 360 * k;
+      if (newX < 0) newX += 360;
+      if (newX >= 360) newX -= 360;
+      const newY = p.x - 360 * k * d;
+      return { x: newX, y: newY };
+    });
+    sortPoints();
+    markCurveDirty("functional inverse");
+  }
+
+  function updateTransposeButtonState() {
+    if (els.transposeBtn) {
+      els.transposeBtn.disabled = (Math.abs(state.curve.degree) !== 1);
+    }
+  }
+
+  function pushHistory() {
+    const snap = {
+      degree: state.curve.degree,
+      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
+      iteration: getIterationCount(),
+      colorSpace: els.colorSpace.value
+    };
+    if (state.history.undoStack.length > 0) {
+      const last = state.history.undoStack[state.history.undoStack.length - 1];
+      if (JSON.stringify(last) === JSON.stringify(snap)) {
+        return;
+      }
+    }
+    state.history.undoStack.push(snap);
+    if (state.history.undoStack.length > 200) {
+      state.history.undoStack.shift();
+    }
+    state.history.redoStack = [];
+    updateUndoRedoButtons();
+  }
+
+  function undo() {
+    if (state.history.undoStack.length === 0) return;
+    const currentSnap = {
+      degree: state.curve.degree,
+      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
+      iteration: getIterationCount(),
+      colorSpace: els.colorSpace.value
+    };
+    state.history.redoStack.push(currentSnap);
+    const prevSnap = state.history.undoStack.pop();
+    applySnapshot(prevSnap);
+    markCurveDirty("undo");
+    updateUndoRedoButtons();
+  }
+
+  function redo() {
+    if (state.history.redoStack.length === 0) return;
+    const currentSnap = {
+      degree: state.curve.degree,
+      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
+      iteration: getIterationCount(),
+      colorSpace: els.colorSpace.value
+    };
+    state.history.undoStack.push(currentSnap);
+    const nextSnap = state.history.redoStack.pop();
+    applySnapshot(nextSnap);
+    markCurveDirty("redo");
+    updateUndoRedoButtons();
+  }
+
+  function applySnapshot(snap) {
+    state.curve.degree = snap.degree;
+    state.curve.points = snap.points.map((p) => ({ x: p.x, y: p.y }));
+    setIteration(snap.iteration);
+    if (snap.colorSpace === "hsl" || snap.colorSpace === "oklch") {
+      els.colorSpace.value = snap.colorSpace;
+    }
+    syncCurveInputs();
+  }
+
+  function updateUndoRedoButtons() {
+    if (els.undoBtn) els.undoBtn.disabled = (state.history.undoStack.length === 0);
+    if (els.redoBtn) els.redoBtn.disabled = (state.history.redoStack.length === 0);
+  }
+
+  function resetCurve() {
+    pushHistory();
+    state.curve.degree = 1;
+    state.curve.points = [
+      { x: 0, y: 0 },
+      { x: 90, y: 90 },
+      { x: 180, y: 180 },
+      { x: 270, y: 270 }
+    ];
+    setIteration(1);
+    els.colorSpace.value = "hsl";
+    syncCurveInputs();
+    markCurveDirty("reset");
   }
 
   function syncCurveInputs() {
@@ -395,6 +651,123 @@
     }
   }
 
+  function updateHueHistogram() {
+    if (!state.originalImageData && !state.isVideo) {
+      state.hueHistogram.fill(0);
+      return;
+    }
+
+    const bins = new Float32Array(360);
+    const colorSpace = els.colorSpace.value;
+
+    let pixels;
+    let width, height;
+    if (state.isVideo) {
+      width = els.originalCanvas.width;
+      height = els.originalCanvas.height;
+      if (!width || !height) return;
+      try {
+        pixels = origCtx().getImageData(0, 0, width, height).data;
+      } catch (e) {
+        return;
+      }
+    } else {
+      pixels = state.originalImageData.data;
+      width = state.originalImageData.width;
+      height = state.originalImageData.height;
+    }
+
+    const totalPixels = width * height;
+    const step = Math.max(1, Math.floor(totalPixels / 15000)) * 4;
+
+    for (let i = 0; i < pixels.length; i += step) {
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      const a = pixels[i + 3];
+      if (a < 10) continue;
+
+      let hue;
+      if (colorSpace === "oklch") {
+        const [, , H] = rgbToOklch(r, g, b);
+        hue = H;
+      } else {
+        const [h] = rgbToHsl(r, g, b);
+        hue = h;
+      }
+
+      const bin = Math.floor(normalizeAngle(hue)) % 360;
+      bins[bin] += 1;
+    }
+
+    const smoothed = new Float32Array(360);
+    for (let i = 0; i < 360; i += 1) {
+      let sum = 0;
+      for (let offset = -2; offset <= 2; offset += 1) {
+        const idx = (i + offset + 360) % 360;
+        sum += bins[idx];
+      }
+      smoothed[i] = sum / 5;
+    }
+
+    let maxVal = 0;
+    for (let i = 0; i < 360; i += 1) {
+      if (smoothed[i] > maxVal) maxVal = smoothed[i];
+    }
+
+    if (maxVal > 0) {
+      for (let i = 0; i < 360; i += 1) {
+        state.hueHistogram[i] = smoothed[i] / maxVal;
+      }
+    } else {
+      state.hueHistogram.fill(0);
+    }
+  }
+
+  function drawHueHistogram(ctx, w, h) {
+    if (!state.originalImageData && !state.isVideo) return;
+    if (!els.showHistogram || !els.showHistogram.checked) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+
+    ctx.beginPath();
+    let began = false;
+
+    for (let i = 0; i <= 360; i += 2) {
+      const input = state.curveView.xOffset + i;
+      const bin = Math.floor(normalizeAngle(input)) % 360;
+      const pct = state.hueHistogram[bin] || 0;
+      
+      const px = inputToScreenX(input, w);
+      const py = h - pct * 0.33 * h;
+
+      if (!began) {
+        ctx.moveTo(px, h);
+        ctx.lineTo(px, py);
+        began = true;
+      } else {
+        ctx.lineTo(px, py);
+      }
+    }
+    ctx.lineTo(inputToScreenX(state.curveView.xOffset + 360, w), h);
+    ctx.closePath();
+
+    const gradient = ctx.createLinearGradient(0, h, 0, h * 0.67);
+    gradient.addColorStop(0, "rgba(255, 101, 184, 0.22)");
+    gradient.addColorStop(1, "rgba(68, 228, 210, 0.0)");
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 101, 184, 0.33)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   function drawEditorGrid(ctx, w, h) {
     const xStart = state.curveView.xOffset;
     const yStart = state.curveView.yOffset;
@@ -434,6 +807,7 @@
     ctx.fillRect(0, 0, w, h);
 
     drawEditorGrid(ctx, w, h);
+    drawHueHistogram(ctx, w, h);
     drawIdentity(ctx, w, h);
     drawCurvePaths(ctx, w, h);
     drawControlPoints(ctx, w, h);
@@ -448,6 +822,8 @@
     els.inSwatch.style.background = hueCss(hue);
     els.outSwatch.style.background = hueCss(out);
     els.windingBadge.textContent = `d = ${state.curve.degree}`;
+    updateTransposeButtonState();
+    updateUndoRedoButtons();
   }
 
   function drawIdentity(ctx, w, h) {
@@ -587,6 +963,7 @@
   }
 
   function handleCurvePointerDown(event) {
+    pushHistory();
     const pos = canvasPoint(event);
     let hit = hitTestPoint(pos);
     if (!hit) hit = addPointAt(pos);
@@ -628,6 +1005,7 @@
   function handleCurveDoubleClick(event) {
     const hit = hitTestPoint(canvasPoint(event));
     if (hit && state.curve.points.length > 2) {
+      pushHistory();
       state.curve.points = state.curve.points.filter((candidate) => candidate !== hit.point);
       state.activePoint = null;
       markCurveDirty("point deleted");
@@ -1052,10 +1430,12 @@
       sizeCanvas(els.modifiedCanvas, width, height);
       modCtx().drawImage(state.gpuRenderer.canvas, 0, 0, width, height);
       setBackendStatus("Backend: GPU");
-      return;
+    } else {
+      setBackendStatus(shouldUseGpu() ? "Backend: CPU fallback" : "Backend: CPU", shouldUseGpu());
+      processImageCPU();
     }
-    setBackendStatus(shouldUseGpu() ? "Backend: CPU fallback" : "Backend: CPU", shouldUseGpu());
-    processImageCPU();
+    updateHueHistogram();
+    drawCurveEditor();
   }
 
   function drawVideoFrame() {
@@ -1072,12 +1452,13 @@
       drawWithRenderer(video, width, height);
       modCtx().drawImage(state.gpuRenderer.canvas, 0, 0, width, height);
       setBackendStatus("Backend: GPU");
-      return;
+    } else {
+      const frame = origCtx().getImageData(0, 0, width, height);
+      modCtx().putImageData(transformImageDataCPU(frame), 0, 0);
+      setBackendStatus(shouldUseGpu() ? "Backend: CPU fallback" : "Backend: CPU", shouldUseGpu());
     }
-
-    const frame = origCtx().getImageData(0, 0, width, height);
-    modCtx().putImageData(transformImageDataCPU(frame), 0, 0);
-    setBackendStatus(shouldUseGpu() ? "Backend: CPU fallback" : "Backend: CPU", shouldUseGpu());
+    updateHueHistogram();
+    drawCurveEditor();
   }
 
   const hasRVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
@@ -1341,6 +1722,7 @@
       try {
         const data = JSON.parse(event.target.result);
         if (!Array.isArray(data.points) || data.points.length < 2) throw new Error("missing points");
+        pushHistory();
         state.curve.degree = Math.round(Number(data.degree) || 0);
         state.curve.points = data.points.map((point) => ({
           x: clamp(Number(point.x), 0, 359.999),
@@ -1408,6 +1790,7 @@
   }
 
   function importGahuemaCurve() {
+    pushHistory();
     const params = {
       mode: els.gMode.value,
       anchorHue: normalizeAngle(Number(els.gAnchorHue.value) || 0),
@@ -1468,10 +1851,57 @@
       els.axisY.addEventListener("pointercancel", endAxisDrag);
     }
 
+    els.undoBtn.addEventListener("click", undo);
+    els.redoBtn.addEventListener("click", redo);
+    els.resetBtn.addEventListener("click", resetCurve);
+
+    window.addEventListener("keydown", (event) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === "INPUT" ||
+        activeEl.tagName === "TEXTAREA" ||
+        activeEl.isContentEditable
+      );
+      if (isInput) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        if (event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        event.preventDefault();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {
+        redo();
+        event.preventDefault();
+      }
+    });
+
     els.applyPresetBtn.addEventListener("click", () => setPreset(els.presetSelect.value));
 
     els.rotateCurveBtn.addEventListener("click", rotateCurveHue);
     els.invertCurveBtn.addEventListener("click", invertCurveHue);
+
+    els.dehnTwistPlusBtn.addEventListener("click", () => dehnTwist(1));
+    els.dehnTwistMinusBtn.addEventListener("click", () => dehnTwist(-1));
+    els.symmetrizeBtn.addEventListener("click", () => symmetrizeCurve(Number(els.symmetrizeSelect.value) || 2));
+    els.recenterCurveBtn.addEventListener("click", () => recenterCurve(Number(els.recenterAmountInput.value) || 0));
+    els.inputRotateCurveBtn.addEventListener("click", () => rotateCurveInput(Number(els.recenterAmountInput.value) || 0));
+    els.inputInvertCurveBtn.addEventListener("click", invertCurveInput);
+    els.mirrorConjugateBtn.addEventListener("click", mirrorConjugate);
+    els.strengthInput.addEventListener("input", () => {
+      const val = Number(els.strengthInput.value);
+      els.strengthValue.textContent = `${val}%`;
+      adjustStrength(val);
+    });
+    els.strengthInput.addEventListener("change", () => {
+      state.strengthBasePoints = null;
+      state.strengthBaseDegree = null;
+      els.strengthInput.value = "100";
+      els.strengthValue.textContent = "100%";
+    });
+    els.transposeBtn.addEventListener("click", transposeCurve);
+    els.showHistogram.addEventListener("change", () => drawCurveEditor());
 
     els.degreeInput.addEventListener("input", () => {
       state.curve.degree = Math.round(Number(els.degreeInput.value) || 0);

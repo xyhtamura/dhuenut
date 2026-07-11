@@ -8,6 +8,13 @@
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Syne+Mono&display=swap");
 
+@font-face {
+  font-family: "Morage";
+  src: url("Morage.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
 :root {
   color-scheme: dark;
   --space-0: #150a21;
@@ -33,7 +40,7 @@
   --radius-tight: 15px 11px 17px 12px;
   --mono: "Syne Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
   --sans: "M PLUS Rounded 1c", ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --display: "Bagel Fat One", "M PLUS Rounded 1c", system-ui, sans-serif;
+  --display: "Morage", "Bagel Fat One", "M PLUS Rounded 1c", system-ui, sans-serif;
 }
 
 * {
@@ -923,6 +930,11 @@ input[type="range"] {
         </div>
 
         <div class="control-stack">
+          <div class="control-row" style="display: flex; gap: 8px;">
+            <button class="button ghost" id="undoBtn" disabled title="Undo last edit (Ctrl+Z)" style="flex: 1;">Undo</button>
+            <button class="button ghost" id="redoBtn" disabled title="Redo last edit (Ctrl+Y)" style="flex: 1;">Redo</button>
+            <button class="button ghost" id="resetBtn" title="Reset curve to default identity" style="flex: 1;">Reset</button>
+          </div>
           <div class="preset-row">
             <div class="field wide">
               <label for="presetSelect">Preset</label>
@@ -993,12 +1005,70 @@ input[type="range"] {
               </select>
             </div>
           </div>
+          <div class="control-row" style="margin-top: 5px;">
+            <label class="check-row" style="flex: 1;"><input id="showHistogram" type="checkbox" checked> Show hue histogram</label>
+          </div>
           <div class="status" id="backendStatus">Backend: Auto</div>
         </div>
       </div>
 
       <div class="panel-head">
-        <p class="panel-title"><b>02</b><img class="panel-icon" src="../gahuema/gahuema.svg" alt="">GaHueMa import</p>
+        <p class="panel-title"><b>02</b> Math &amp; Symmetry</p>
+      </div>
+      <div class="panel-body">
+        <div class="control-stack">
+          <!-- Twists & Symmetrize -->
+          <div class="control-row">
+            <div class="field compact">
+              <label>Winding / Twist</label>
+              <div style="display: flex; gap: 4px;">
+                <button class="button" id="dehnTwistPlusBtn" style="flex: 1; padding: 8px 4px;" title="Dehn Twist +1 (+1 Winding Turn)">+1 Turn</button>
+                <button class="button" id="dehnTwistMinusBtn" style="flex: 1; padding: 8px 4px;" title="Dehn Twist -1 (-1 Winding Turn)">-1 Turn</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="symmetrizeSelect">Symmetrize</label>
+              <select id="symmetrizeSelect">
+                <option value="2">2-fold (Complements)</option>
+                <option value="3">3-fold (Triads)</option>
+                <option value="4">4-fold (Tetrads)</option>
+              </select>
+            </div>
+            <button class="button magenta" id="symmetrizeBtn" style="margin-bottom: 0;">Symmetrize</button>
+          </div>
+
+          <!-- Panning / Recentering -->
+          <div class="control-row">
+            <div class="field compact">
+              <label for="recenterAmountInput">Shift/Recenter</label>
+              <input id="recenterAmountInput" type="number" step="1" value="30">
+            </div>
+            <button class="button" id="recenterCurveBtn" title="Conjugate rotate: move same curve shape along diagonal">Recenter</button>
+            <button class="button" id="inputRotateCurveBtn" title="Input rotate: shift which hues are affected">In Rotate</button>
+          </div>
+
+          <!-- Inversions -->
+          <div class="control-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="button" id="inputInvertCurveBtn" title="Input invert: f(-x)">Input Invert</button>
+            <button class="button" id="mirrorConjugateBtn" title="Mirror conjugate: -f(-x)">Mirror Conj.</button>
+          </div>
+
+          <!-- Strength & Inverse -->
+          <div class="control-row">
+            <div class="field wide">
+              <label for="strengthInput">Detail Strength</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input id="strengthInput" type="range" min="0" max="200" step="1" value="100" style="flex: 1;">
+                <span id="strengthValue" style="min-width: 42px; text-align: right; font-family: var(--mono); font-size: 0.72rem; color: var(--lime);">100%</span>
+              </div>
+            </div>
+            <button class="button primary" id="transposeBtn" title="Functional inverse: swap input/output (requires degree +/-1 and monotone curve)">Transpose</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-head">
+        <p class="panel-title"><b>03</b><img class="panel-icon" src="../gahuema/gahuema.svg" alt="">GaHueMa import</p>
       </div>
       <div class="panel-body">
         <div class="import-grid">
@@ -1040,7 +1110,7 @@ input[type="range"] {
 
     <section class="panel media-panel">
       <div class="panel-head">
-        <p class="panel-title"><b>03</b> Media</p>
+        <p class="panel-title"><b>04</b> Media</p>
         <div class="control-row">
           <input id="filenameInput" value="dhuenut-output" aria-label="File name">
           <span class="status" id="extLabel">.png/.webm</span>

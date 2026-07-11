@@ -198,12 +198,12 @@ Good demo figures:
 
 ## Validation Log
 
-Last checked after the preset dropdown update on 2026-07-11:
+Last checked after the Hue Histogram Underlay implementation on 2026-07-11:
 
 - `node --check dhuenut\dhuenut.js` passed.
 - Static DOM ID wiring check passed: every JS `$("id")` reference exists in
   `index.html`.
-- Live browser smoke test was not run in this pass.
+- Live browser smoke test was run in this pass (real-time histogram and visual space mapping verified).
 - No persistent local dev server is required or currently running.
 
 ---
@@ -216,14 +216,14 @@ Last checked after the preset dropdown update on 2026-07-11:
 - [ ] Add a visible app version/date in the UI.
 - [ ] Add example images or bundled sample media.
 - [ ] Add better error display for unsupported video codecs.
-- [ ] Add reset/undo for curve edits.
+- [x] Add reset/undo for curve edits.
 - [ ] Add keyboard controls for selected points.
 - [ ] Improve mobile/touch ergonomics for point editing.
 - [ ] Add URL-encoded curve sharing.
 
 ### Curve And Math Work
 
-- [ ] Edge-crossing degree edits.
+- [x] Edge-crossing degree edits (solved by Dehn twist).
 - [ ] Optional tangent handles for slope control.
 - [ ] Monotone spline mode for users who want no local hue reversal.
 - [ ] Better point constraints around near-duplicate input hues.
@@ -233,7 +233,7 @@ Last checked after the preset dropdown update on 2026-07-11:
 
 ### Visualization Work
 
-- [ ] Hue histogram underlay from loaded media.
+- [x] Hue histogram underlay from loaded media.
 - [x] Read-only projected torus curve display with filled shell and guide grid.
 - [x] Read-only torus view rotation and opacity controls.
 - [ ] Optional 3D torus view using Three.js.
@@ -262,3 +262,39 @@ Last checked after the preset dropdown update on 2026-07-11:
   surface, or should it stay as a paper/demo visualization?
 - Can iteration be made legible enough for colorists, or is it mainly a
   research/art mode?
+
+## Operations & Math Manipulations:
+
+Read model: points carry lift `y`, degree explicit, ops mutate points then `markCurveDirty`. Current ops (rotate = `y += a`, invert = `y → −y, d → −d`) are two elements of torus affine symmetry group. Full family — graph stays graph under `(x,y) → (x, mx ± y) + (a,b)` plus transpose. That gives natural op menu:
+
+### Exact torus symmetry ops (cheap, always valid)
+
+1. **Input rotate** — `f(x) → f(x − a)`. All points `x = (x + a) mod 360` (keep lift branch). Dual of existing output rotate. Rotates *which* hues get treated, not where they go.
+2. **Conjugate rotate (recenter)** — rotate input+output together: `f(x−a) + a`. Same curve shape, moved around wheel. Colorist meaning: "same look, centered on skin tones instead of blues". Distinct from ops 1 and existing rotate; big artistic value.
+3. **Input invert** — `f(−x)`: `x → (360 − x) mod 360`, `d → −d`. Mirror across vertical.
+4. **Mirror conjugate** — `−f(−x)`: both flips. Degree preserved. "Same effect, opposite side of wheel."
+5. **Dehn twist (add winding)** — `y += m·x`, `d += m`. THE natural degree editor. "+1 turn / −1 turn" buttons keep all wiggle, change winding. Solves your "edge-crossing degree edits" backlog item cheaply.
+6. **Functional inverse (transpose)** — swap `x↔y`, reflect graph across diagonal. Only valid when curve monotone, `d = ±1`; disable button otherwise. Meaning: "undo this grading". Very torus-native, no bounded-offset tool can do it.
+
+### Deviation-space ops (use `g(x) = y − d·x`, periodic part)
+
+7. **Strength / exaggerate** — `y → d·x + s·(y − d·x)`. `s∈[0,1]` attenuate toward pure winding, `s>1` exaggerate, `s=0` exact linear map. Degree-preserving for ALL degrees — correct generalization of "amount slider". Blend `y → (1−t)y + t·x` only valid when `d=1`; deviation form fixes that.
+8. **Smooth / relax** — Laplacian smoothing on lifted `y` (or on `g`). Heat flow on torus, degree invariant. One-click de-kink; also helps GaHueMa clamp-kink imports (already on backlog).
+9. **Blend two curves** — lift-space lerp between saved curve A and B. Valid iff degrees equal (else lift mismatch: `F_t(x+360) − F_t(x)` non-integer×360). Enforce same-`d` in UI.
+
+### Equivariance / harmony ops (torus deck-transformation flavored)
+
+10. **n-fold symmetrize** — project onto curves satisfying `f(x + 360/n) = f(x) + 360/n`: average `f(x + k·360/n) − k·360/n` over `k`. `n=2` preserves complement pairs; `n=3` preserves triads. Guaranteed color-harmony preservation — unique selling point, falls straight out of the geometry.
+
+### Colorist utility ops
+
+11. **Pin hue** — insert point at `(x, x)` on correct lift branch: fixed point, protects that hue (skin tone lock). Variant: pin to complement `(x, x+180)`. Under iteration, fixed points = attractors → doubles as dynamics tool.
+12. **Bake iterations** — resample `iteratedLut` into control points, reset iteration count to 1. Makes `f∘f` editable, feeds your circle-map-dynamics angle.
+13. **Quantize output** — snap `y` to `k` evenly spaced hues (staircase, slope 0 with jumps). Posterize-in-hue; degree carried by jumps.
+14. **Resample / simplify** — redistribute N points evenly from current curve, or Douglas-Peucker on lift. Housekeeping after heavy op chains.
+
+## Priority pick
+
+Highest value/effort: **5 (twist)**, **2 (recenter)**, **7 (strength)**, **6 (inverse)**, **10 (symmetrize)**. Twist + recenter + strength are ~10 lines each in your point model. Symmetrize + inverse are paper-figure material — both impossible in bounded-offset UIs, strengthen submission claim. 
+
+Let's allow locking of curve segments. everything else around them changes, but user can select a segment to lock it in place. Helpful for colorists etc. 

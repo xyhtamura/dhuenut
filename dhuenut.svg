@@ -1,46 +1,58 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
   <title id="title">DHuenut icon</title>
-  <desc id="desc">A glowing cosmic candy torus with a rainbow glaze curve.</desc>
+  <desc id="desc">A highly saturated transparent glass rainbow donut with a glossy sheen.</desc>
   <defs>
-    <radialGradient id="space" cx="32%" cy="22%" r="76%">
-      <stop offset="0" stop-color="#ffbde4"/>
-      <stop offset="0.36" stop-color="#47235f"/>
-      <stop offset="1" stop-color="#150a21"/>
-    </radialGradient>
-    <linearGradient id="shell" x1="10" y1="16" x2="55" y2="50" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff3bf"/>
-      <stop offset="0.24" stop-color="#ffc85f"/>
-      <stop offset="0.5" stop-color="#ff65b8"/>
-      <stop offset="0.74" stop-color="#8fa1ff"/>
-      <stop offset="1" stop-color="#44e4d2"/>
+    <!-- Rainbow Body: Highly saturated semi-transparent gradient -->
+    <linearGradient id="rainbow-body" x1="10" y1="16" x2="54" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff0055" stop-opacity="0.85"/>
+      <stop offset="25%" stop-color="#ff9f00" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="#8fff00" stop-opacity="0.85"/>
+      <stop offset="75%" stop-color="#00f0ff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#a200ff" stop-opacity="0.85"/>
     </linearGradient>
-    <linearGradient id="glaze" x1="11" y1="29" x2="54" y2="34" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#44e4d2"/>
-      <stop offset="0.32" stop-color="#d8fb59"/>
-      <stop offset="0.62" stop-color="#ffc85f"/>
-      <stop offset="1" stop-color="#ff65b8"/>
+
+    <!-- Rainbow Stroke: Fully opaque, neon-saturated matching colors -->
+    <linearGradient id="rainbow-stroke" x1="10" y1="16" x2="54" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff3377"/>
+      <stop offset="25%" stop-color="#ffb233"/>
+      <stop offset="50%" stop-color="#a6ff33"/>
+      <stop offset="75%" stop-color="#33f2ff"/>
+      <stop offset="100%" stop-color="#b533ff"/>
     </linearGradient>
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="1.7" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    <mask id="torusHole">
-      <rect width="64" height="64" fill="#fff"/>
-      <ellipse cx="32" cy="32" rx="13.5" ry="7.7" fill="#000"/>
-    </mask>
+
+    <!-- Glass Sheen: Soft white reflections for depth -->
+    <linearGradient id="glass-sheen" x1="32" y1="16" x2="32" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.25"/>
+    </linearGradient>
   </defs>
-  <circle cx="32" cy="32" r="29" fill="url(#space)"/>
-  <g transform="rotate(-16 32 32)" filter="url(#glow)">
-    <ellipse cx="32" cy="32" rx="26" ry="15.2" fill="url(#shell)" mask="url(#torusHole)"/>
-    <ellipse cx="32" cy="32" rx="13.5" ry="7.7" fill="#13091e" stroke="#fff3bf" stroke-width="2.4"/>
-    <path d="M8.8 31.7c6.7-7.8 16.1-8.5 24.3-2.4 8.7 6.5 14.7 5.4 22.6-2.3" fill="none" stroke="#3d1748" stroke-width="7" stroke-linecap="round"/>
-    <path d="M8.8 31.7c6.7-7.8 16.1-8.5 24.3-2.4 8.7 6.5 14.7 5.4 22.6-2.3" fill="none" stroke="url(#glaze)" stroke-width="4.2" stroke-linecap="round"/>
+
+  <g transform="rotate(-16 32 32)">
+    <!-- Torus Glass Body with Rainbow Filling (EvenOdd path handles the hole transparency) -->
+    <path d="M 6,32 A 26,15.2 0 1,0 58,32 A 26,15.2 0 1,0 6,32 M 18.5,32 A 13.5,7.7 0 1,1 45.5,32 A 13.5,7.7 0 1,1 18.5,32" fill="url(#rainbow-body)" fill-rule="evenodd"/>
+    
+    <!-- Torus Glass Sheen Layer -->
+    <path d="M 6,32 A 26,15.2 0 1,0 58,32 A 26,15.2 0 1,0 6,32 M 18.5,32 A 13.5,7.7 0 1,1 45.5,32 A 13.5,7.7 0 1,1 18.5,32" fill="url(#glass-sheen)" fill-rule="evenodd"/>
+
+    <!-- Sharp Rainbow Borders -->
+    <!-- Outer boundary stroke -->
+    <ellipse cx="32" cy="32" rx="26" ry="15.2" fill="none" stroke="url(#rainbow-stroke)" stroke-width="3"/>
+    <!-- Inner hole boundary stroke -->
+    <ellipse cx="32" cy="32" rx="13.5" ry="7.7" fill="none" stroke="url(#rainbow-stroke)" stroke-width="2.5"/>
+
+    <!-- Glass Reflections & Highlights -->
+    <!-- Top outer rim gloss arc -->
+    <path d="M 12,26 C 18,16 46,16 52,26" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+    <!-- Bottom inner rim gloss arc -->
+    <path d="M 23,35 C 27,37 37,37 41,35" fill="none" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
+    <!-- Intense specular reflection bubble -->
+    <ellipse cx="20" cy="22" rx="2.5" ry="1.2" fill="#ffffff" opacity="0.9" transform="rotate(-15 20 22)"/>
   </g>
-  <circle cx="17" cy="16" r="1.8" fill="#fff3bf"/>
-  <circle cx="49" cy="16" r="1.5" fill="#44e4d2"/>
-  <circle cx="49" cy="48" r="2" fill="#d8fb59"/>
-  <circle cx="13" cy="45" r="1.3" fill="#ff65b8"/>
+
+  <!-- Floating Sprinkles / Stars -->
+  <circle cx="17" cy="16" r="2" fill="#fff3bf" opacity="0.9"/>
+  <circle cx="49" cy="16" r="1.8" fill="#33f2ff" opacity="0.9"/>
+  <circle cx="49" cy="48" r="2.2" fill="#a6ff33" opacity="0.9"/>
+  <circle cx="13" cy="45" r="1.5" fill="#ff3377" opacity="0.9"/>
 </svg>
