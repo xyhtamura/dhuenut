@@ -13,6 +13,7 @@ file server. No build step is required.
 - Torus-native lifted hue curve editor.
 - Preset dropdown for common and experimental curve shapes.
 - Hue rotate and hue invert processes for transforming the current curve.
+- Segment locking for protecting selected hue ranges during broad edits.
 - HSL and OKLCH rendering modes.
 - CPU renderer with WebGL acceleration when available.
 - Image and video import by upload or drag/drop.
@@ -21,4 +22,3 @@ file server. No build step is required.
 - GaHueMa-style formula import.
 
 See `dhuenut.md` for design notes, validation notes, and future work.
-

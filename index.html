@@ -427,7 +427,7 @@ button:disabled {
 
 .readout-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
   gap: 8px;
   margin-top: 12px;
 }
@@ -606,6 +606,21 @@ input[type="range"] {
   background:
     linear-gradient(180deg, #fff3bf0d, transparent 45%),
     #211039;
+}
+
+.button.active {
+  border-color: var(--cyan);
+  color: #24102d;
+  background:
+    radial-gradient(circle at 28% 22%, #fff8ce 0 12%, transparent 34%),
+    linear-gradient(180deg, #ffc85f, #d8fb59 56%, #97b829);
+  font-weight: 800;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
 }
 
 .preset-row .button {
@@ -911,6 +926,10 @@ input[type="range"] {
             <b id="windingBadge">d = 1</b>
           </div>
           <div class="readout">
+            <span>locks</span>
+            <b id="segmentLockCount">0</b>
+          </div>
+          <div class="readout">
             <span>slope</span>
             <b id="slopeReadout">1.00</b>
           </div>
@@ -1007,6 +1026,10 @@ input[type="range"] {
           </div>
           <div class="control-row" style="margin-top: 5px;">
             <label class="check-row" style="flex: 1;"><input id="showHistogram" type="checkbox" checked> Show hue histogram</label>
+          </div>
+          <div class="control-row">
+            <button class="button ghost" id="segmentLockPickBtn" title="Pick a curve segment to lock or unlock">Pick Segment</button>
+            <button class="button ghost" id="segmentUnlockAllBtn" title="Remove every segment lock" disabled>Unlock All</button>
           </div>
           <div class="status" id="backendStatus">Backend: Auto</div>
         </div>

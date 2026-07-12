@@ -3,6 +3,9 @@
 
   const LUT_SIZE = 1024;
   const CURVE_HIT_RADIUS = 13;
+  const SEGMENT_HIT_RADIUS = 16;
+  const SEGMENT_LOCK_SAMPLE_STEP = 18;
+  const HUE_EPSILON = 0.001;
   const $ = (id) => document.getElementById(id);
   const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff", "webp"]);
   const VIDEO_EXTENSIONS = new Set(["avi", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ogv", "webm"]);
@@ -25,6 +28,9 @@
     activePoint: null,
     dragYShift: 0,
     dragBranch: 0,
+    dragLockCaptures: null,
+    segmentLockPickMode: false,
+    segmentLocks: [],
     strengthBasePoints: null,
     strengthBaseDegree: null,
     history: {
@@ -115,6 +121,9 @@
     strengthInput: $("strengthInput"),
     strengthValue: $("strengthValue"),
     transposeBtn: $("transposeBtn"),
+    segmentLockCount: $("segmentLockCount"),
+    segmentLockPickBtn: $("segmentLockPickBtn"),
+    segmentUnlockAllBtn: $("segmentUnlockAllBtn"),
     undoBtn: $("undoBtn"),
     redoBtn: $("redoBtn"),
     resetBtn: $("resetBtn"),
@@ -173,6 +182,179 @@
 
   function sortPoints() {
     state.curve.points.sort((a, b) => a.x - b.x);
+  }
+
+  function dedupeCurvePoints() {
+    sortPoints();
+    const deduped = [];
+    state.curve.points.forEach((p) => {
+      const last = deduped[deduped.length - 1];
+      if (last && Math.abs(last.x - p.x) < HUE_EPSILON) {
+        deduped[deduped.length - 1] = p;
+      } else {
+        deduped.push(p);
+      }
+    });
+    state.curve.points = deduped;
+  }
+
+  function cloneSegmentLocks(locks = state.segmentLocks) {
+    return locks.map((lock) => ({
+      start: normalizeAngle(lock.start),
+      end: normalizeAngle(lock.end)
+    }));
+  }
+
+  function segmentSpan(lockOrStart, maybeEnd) {
+    const start = typeof lockOrStart === "number" ? lockOrStart : lockOrStart.start;
+    const end = typeof lockOrStart === "number" ? maybeEnd : lockOrStart.end;
+    return normalizeAngle(end - start);
+  }
+
+  function segmentMidpoint(segment) {
+    return segment.start + segmentSpan(segment) / 2;
+  }
+
+  function inputInLock(inputLift, lock, includeEdges = true) {
+    const span = segmentSpan(lock);
+    if (span < HUE_EPSILON) return false;
+    const rel = normalizeAngle(normalizeAngle(inputLift) - lock.start);
+    if (includeEdges) return rel <= span + HUE_EPSILON;
+    return rel > HUE_EPSILON && rel < span - HUE_EPSILON;
+  }
+
+  function lockIndexForInput(inputLift) {
+    return state.segmentLocks.findIndex((lock) => inputInLock(inputLift, lock, true));
+  }
+
+  function pointInLockedSegment(curvePoint) {
+    return lockIndexForInput(curvePoint.x) !== -1;
+  }
+
+  function parseSegmentLocksString(value) {
+    if (!value) return [];
+    return value.split(";")
+      .map((pair) => {
+        const [startStr, endStr] = pair.split(",");
+        const start = Number(startStr);
+        const end = Number(endStr);
+        if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+        const lock = { start: normalizeAngle(start), end: normalizeAngle(end) };
+        return segmentSpan(lock) < HUE_EPSILON ? null : lock;
+      })
+      .filter(Boolean);
+  }
+
+  function serializeSegmentLocks() {
+    return state.segmentLocks
+      .map((lock) => `${Number(lock.start.toFixed(2))},${Number(lock.end.toFixed(2))}`)
+      .join(";");
+  }
+
+  function findSegmentAtInput(inputLift) {
+    const points = state.curve.points;
+    if (points.length < 2) return null;
+    sortPoints();
+    const hue = normalizeAngle(inputLift);
+    for (let i = 0; i < points.length; i += 1) {
+      const p1 = points[i];
+      const p2 = points[(i + 1) % points.length];
+      const span = segmentSpan(p1.x, p2.x);
+      if (span < HUE_EPSILON) continue;
+      const rel = normalizeAngle(hue - p1.x);
+      if (rel <= span + HUE_EPSILON) {
+        return { start: p1.x, end: p2.x, index: i };
+      }
+    }
+    return null;
+  }
+
+  function captureSegmentLockSegments() {
+    return state.segmentLocks.map((lock) => {
+      const span = segmentSpan(lock);
+      const steps = Math.max(2, Math.ceil(span / SEGMENT_LOCK_SAMPLE_STEP));
+      const samples = [];
+      for (let i = 0; i <= steps; i += 1) {
+        const inputLift = lock.start + span * (i / steps);
+        samples.push({
+          input: inputLift,
+          output: sampleLiftUnwrapped(inputLift)
+        });
+      }
+      return {
+        start: lock.start,
+        end: lock.end,
+        samples
+      };
+    });
+  }
+
+  function restoreSegmentLockSegments(captures) {
+    if (!captures || captures.length === 0) return;
+    const restoredLocks = captures.map((lock) => ({ start: lock.start, end: lock.end }));
+    state.curve.points = state.curve.points.filter((p) => (
+      !restoredLocks.some((lock) => inputInLock(p.x, lock, true))
+    ));
+    captures.forEach((lock) => {
+      lock.samples.forEach((sample) => {
+        const xCycle = Math.floor(sample.input / 360);
+        state.curve.points.push({
+          x: normalizeAngle(sample.input),
+          y: sample.output - xCycle * 360 * state.curve.degree
+        });
+      });
+    });
+    state.segmentLocks = cloneSegmentLocks(restoredLocks);
+    dedupeCurvePoints();
+  }
+
+  function mutatePreservingSegmentLocks(mutator) {
+    const captures = captureSegmentLockSegments();
+    mutator();
+    restoreSegmentLockSegments(captures);
+  }
+
+  function clearSegmentLocks() {
+    state.segmentLocks = [];
+    state.segmentLockPickMode = false;
+    updateSegmentLockUi();
+  }
+
+  function toggleSegmentLock(segment) {
+    const lockInput = segmentMidpoint(segment);
+    const existingIndex = lockIndexForInput(lockInput);
+    pushHistory();
+    if (existingIndex !== -1) {
+      state.segmentLocks.splice(existingIndex, 1);
+      markCurveDirty("segment unlocked");
+    } else {
+      state.segmentLocks.push({
+        start: normalizeAngle(segment.start),
+        end: normalizeAngle(segment.end)
+      });
+      markCurveDirty("segment locked");
+    }
+    updateSegmentLockUi();
+  }
+
+  function unlockAllSegments() {
+    if (state.segmentLocks.length === 0) return;
+    pushHistory();
+    clearSegmentLocks();
+    markCurveDirty("segments unlocked");
+  }
+
+  function updateSegmentLockUi() {
+    if (els.segmentLockCount) {
+      els.segmentLockCount.textContent = String(state.segmentLocks.length);
+    }
+    if (els.segmentLockPickBtn) {
+      els.segmentLockPickBtn.textContent = state.segmentLockPickMode ? "Picking" : "Pick Segment";
+      els.segmentLockPickBtn.classList.toggle("active", state.segmentLockPickMode);
+    }
+    if (els.segmentUnlockAllBtn) {
+      els.segmentUnlockAllBtn.disabled = state.segmentLocks.length === 0;
+    }
   }
 
   function getPeriodicPoint(points, index) {
@@ -329,6 +511,7 @@
       state.curve.degree = 1;
       state.curve.points = [point(0, 0), point(45, 80), point(90, 132), point(135, 88), point(180, 180), point(225, 272), point(270, 228), point(315, 280)];
     }
+    clearSegmentLocks();
     syncCurveInputs();
     markCurveDirty(name);
   }
@@ -345,31 +528,37 @@
       els.curveStatus.textContent = "bad rotate amount";
       return;
     }
-    state.curve.points = state.curve.points.map((curvePoint) => ({
-      x: curvePoint.x,
-      y: curvePoint.y + amount
-    }));
+    mutatePreservingSegmentLocks(() => {
+      state.curve.points = state.curve.points.map((curvePoint) => ({
+        x: curvePoint.x,
+        y: curvePoint.y + amount
+      }));
+    });
     markCurveDirty(`rotate ${formatSignedDegrees(amount)}`);
   }
 
   function invertCurveHue() {
     pushHistory();
-    state.curve.degree = -state.curve.degree;
-    state.curve.points = state.curve.points.map((curvePoint) => ({
-      x: curvePoint.x,
-      y: -curvePoint.y
-    }));
+    mutatePreservingSegmentLocks(() => {
+      state.curve.degree = -state.curve.degree;
+      state.curve.points = state.curve.points.map((curvePoint) => ({
+        x: curvePoint.x,
+        y: -curvePoint.y
+      }));
+    });
     syncCurveInputs();
     markCurveDirty("hue inverted");
   }
 
   function dehnTwist(m) {
     pushHistory();
-    state.curve.degree += m;
-    state.curve.points = state.curve.points.map((p) => ({
-      x: p.x,
-      y: p.y + m * p.x
-    }));
+    mutatePreservingSegmentLocks(() => {
+      state.curve.degree += m;
+      state.curve.points = state.curve.points.map((p) => ({
+        x: p.x,
+        y: p.y + m * p.x
+      }));
+    });
     syncCurveInputs();
     markCurveDirty(`dehn twist ${m > 0 ? "+" : ""}${m}`);
   }
@@ -377,81 +566,91 @@
   function rotateCurveInput(amount) {
     pushHistory();
     const a = normalizeAngle(amount);
-    state.curve.points = state.curve.points.map((p) => {
-      let newX = p.x + a;
-      let newY = p.y;
-      if (newX >= 360) {
-        newX -= 360;
-        newY -= 360 * state.curve.degree;
-      }
-      return { x: newX, y: newY };
+    mutatePreservingSegmentLocks(() => {
+      state.curve.points = state.curve.points.map((p) => {
+        let newX = p.x + a;
+        let newY = p.y;
+        if (newX >= 360) {
+          newX -= 360;
+          newY -= 360 * state.curve.degree;
+        }
+        return { x: newX, y: newY };
+      });
+      sortPoints();
     });
-    sortPoints();
     markCurveDirty(`input rotate ${formatSignedDegrees(amount)}`);
   }
 
   function recenterCurve(amount) {
     pushHistory();
     const a = normalizeAngle(amount);
-    state.curve.points = state.curve.points.map((p) => {
-      let newX = p.x + a;
-      let newY = p.y + a;
-      if (newX >= 360) {
-        newX -= 360;
-        newY -= 360 * state.curve.degree;
-      }
-      return { x: newX, y: newY };
+    mutatePreservingSegmentLocks(() => {
+      state.curve.points = state.curve.points.map((p) => {
+        let newX = p.x + a;
+        let newY = p.y + a;
+        if (newX >= 360) {
+          newX -= 360;
+          newY -= 360 * state.curve.degree;
+        }
+        return { x: newX, y: newY };
+      });
+      sortPoints();
     });
-    sortPoints();
     markCurveDirty(`recenter ${formatSignedDegrees(amount)}`);
   }
 
   function invertCurveInput() {
     pushHistory();
-    const d = state.curve.degree;
-    state.curve.degree = -d;
-    state.curve.points = state.curve.points.map((p) => {
-      if (p.x === 0) {
-        return { x: 0, y: p.y };
-      } else {
-        return { x: 360 - p.x, y: p.y - 360 * d };
-      }
+    mutatePreservingSegmentLocks(() => {
+      const d = state.curve.degree;
+      state.curve.degree = -d;
+      state.curve.points = state.curve.points.map((p) => {
+        if (p.x === 0) {
+          return { x: 0, y: p.y };
+        } else {
+          return { x: 360 - p.x, y: p.y - 360 * d };
+        }
+      });
+      sortPoints();
     });
-    sortPoints();
     syncCurveInputs();
     markCurveDirty("input inverted");
   }
 
   function mirrorConjugate() {
     pushHistory();
-    const d = state.curve.degree;
-    state.curve.points = state.curve.points.map((p) => {
-      if (p.x === 0) {
-        return { x: 0, y: -p.y };
-      } else {
-        return { x: 360 - p.x, y: -p.y + 360 * d };
-      }
+    mutatePreservingSegmentLocks(() => {
+      const d = state.curve.degree;
+      state.curve.points = state.curve.points.map((p) => {
+        if (p.x === 0) {
+          return { x: 0, y: -p.y };
+        } else {
+          return { x: 360 - p.x, y: -p.y + 360 * d };
+        }
+      });
+      sortPoints();
     });
-    sortPoints();
     markCurveDirty("mirror conjugate");
   }
 
   function symmetrizeCurve(n) {
     pushHistory();
-    const d = state.curve.degree;
-    const numPoints = 12;
-    const newPoints = [];
-    const L = 360 / n;
-    for (let i = 0; i < numPoints; i += 1) {
-      const x = (i / numPoints) * 360;
-      let sumY = 0;
-      for (let k = 0; k < n; k += 1) {
-        sumY += sampleLiftUnwrapped(x + k * L) - k * L * d;
+    mutatePreservingSegmentLocks(() => {
+      const d = state.curve.degree;
+      const numPoints = 12;
+      const newPoints = [];
+      const L = 360 / n;
+      for (let i = 0; i < numPoints; i += 1) {
+        const x = (i / numPoints) * 360;
+        let sumY = 0;
+        for (let k = 0; k < n; k += 1) {
+          sumY += sampleLiftUnwrapped(x + k * L) - k * L * d;
+        }
+        newPoints.push({ x, y: sumY / n });
       }
-      newPoints.push({ x, y: sumY / n });
-    }
-    state.curve.points = newPoints;
-    sortPoints();
+      state.curve.points = newPoints;
+      sortPoints();
+    });
     markCurveDirty(`${n}-fold symmetrized`);
   }
 
@@ -463,12 +662,14 @@
     }
     const s = strengthValue / 100;
     const d = state.strengthBaseDegree;
-    state.curve.points = state.strengthBasePoints.map((p) => {
-      const yDeviation = p.y - d * p.x;
-      return {
-        x: p.x,
-        y: d * p.x + s * yDeviation
-      };
+    mutatePreservingSegmentLocks(() => {
+      state.curve.points = state.strengthBasePoints.map((p) => {
+        const yDeviation = p.y - d * p.x;
+        return {
+          x: p.x,
+          y: d * p.x + s * yDeviation
+        };
+      });
     });
     markCurveDirty("strength adjust");
   }
@@ -494,15 +695,17 @@
     }
     pushHistory();
 
-    state.curve.points = state.curve.points.map((p) => {
-      const k = Math.floor(p.y / 360);
-      let newX = p.y - 360 * k;
-      if (newX < 0) newX += 360;
-      if (newX >= 360) newX -= 360;
-      const newY = p.x - 360 * k * d;
-      return { x: newX, y: newY };
+    mutatePreservingSegmentLocks(() => {
+      state.curve.points = state.curve.points.map((p) => {
+        const k = Math.floor(p.y / 360);
+        let newX = p.y - 360 * k;
+        if (newX < 0) newX += 360;
+        if (newX >= 360) newX -= 360;
+        const newY = p.x - 360 * k * d;
+        return { x: newX, y: newY };
+      });
+      sortPoints();
     });
-    sortPoints();
     markCurveDirty("functional inverse");
   }
 
@@ -513,12 +716,7 @@
   }
 
   function pushHistory() {
-    const snap = {
-      degree: state.curve.degree,
-      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
-      iteration: getIterationCount(),
-      colorSpace: els.colorSpace.value
-    };
+    const snap = createSnapshot();
     if (state.history.undoStack.length > 0) {
       const last = state.history.undoStack[state.history.undoStack.length - 1];
       if (JSON.stringify(last) === JSON.stringify(snap)) {
@@ -535,12 +733,7 @@
 
   function undo() {
     if (state.history.undoStack.length === 0) return;
-    const currentSnap = {
-      degree: state.curve.degree,
-      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
-      iteration: getIterationCount(),
-      colorSpace: els.colorSpace.value
-    };
+    const currentSnap = createSnapshot();
     state.history.redoStack.push(currentSnap);
     const prevSnap = state.history.undoStack.pop();
     applySnapshot(prevSnap);
@@ -550,12 +743,7 @@
 
   function redo() {
     if (state.history.redoStack.length === 0) return;
-    const currentSnap = {
-      degree: state.curve.degree,
-      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
-      iteration: getIterationCount(),
-      colorSpace: els.colorSpace.value
-    };
+    const currentSnap = createSnapshot();
     state.history.undoStack.push(currentSnap);
     const nextSnap = state.history.redoStack.pop();
     applySnapshot(nextSnap);
@@ -563,14 +751,27 @@
     updateUndoRedoButtons();
   }
 
+  function createSnapshot() {
+    return {
+      degree: state.curve.degree,
+      points: state.curve.points.map((p) => ({ x: p.x, y: p.y })),
+      segmentLocks: cloneSegmentLocks(),
+      iteration: getIterationCount(),
+      colorSpace: els.colorSpace.value
+    };
+  }
+
   function applySnapshot(snap) {
     state.curve.degree = snap.degree;
     state.curve.points = snap.points.map((p) => ({ x: p.x, y: p.y }));
+    state.segmentLocks = cloneSegmentLocks(snap.segmentLocks || []);
+    state.segmentLockPickMode = false;
     setIteration(snap.iteration);
     if (snap.colorSpace === "hsl" || snap.colorSpace === "oklch") {
       els.colorSpace.value = snap.colorSpace;
     }
     syncCurveInputs();
+    updateSegmentLockUi();
   }
 
   function updateUndoRedoButtons() {
@@ -587,6 +788,7 @@
       { x: 180, y: 180 },
       { x: 270, y: 270 }
     ];
+    clearSegmentLocks();
     setIteration(1);
     els.colorSpace.value = "hsl";
     syncCurveInputs();
@@ -598,7 +800,8 @@
     const cs = els.colorSpace.value;
     const it = getIterationCount();
     const pts = state.curve.points.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(";");
-    return `d=${d}&cs=${cs}&it=${it}&pts=${pts}`;
+    const locks = serializeSegmentLocks();
+    return `d=${d}&cs=${cs}&it=${it}&pts=${pts}${locks ? `&locks=${locks}` : ""}`;
   }
 
   function loadStateFromHash() {
@@ -609,6 +812,7 @@
     const csStr = params.get("cs");
     const itStr = params.get("it");
     const ptsStr = params.get("pts");
+    const locksStr = params.get("locks");
 
     if (!ptsStr) return false;
 
@@ -625,6 +829,8 @@
       pushHistory();
       state.curve.degree = Math.round(Number(dStr) || 0);
       state.curve.points = points;
+      state.segmentLocks = parseSegmentLocksString(locksStr);
+      state.segmentLockPickMode = false;
       sortPoints();
 
       if (itStr) {
@@ -637,6 +843,7 @@
       }
 
       syncCurveInputs();
+      updateSegmentLockUi();
       markCurveDirty("url loaded");
       return true;
     } catch (e) {
@@ -655,6 +862,7 @@
   function syncCurveInputs() {
     els.degreeInput.value = String(state.curve.degree);
     els.windingBadge.textContent = `d = ${state.curve.degree}`;
+    updateSegmentLockUi();
   }
 
   function getIterationCount() {
@@ -872,6 +1080,7 @@
     drawHueHistogram(ctx, w, h);
     drawIdentity(ctx, w, h);
     drawCurvePaths(ctx, w, h);
+    drawLockedSegments(ctx, w, h);
     drawControlPoints(ctx, w, h);
     if (state.torusView) state.torusView.draw();
 
@@ -886,6 +1095,7 @@
     els.windingBadge.textContent = `d = ${state.curve.degree}`;
     updateTransposeButtonState();
     updateUndoRedoButtons();
+    updateSegmentLockUi();
   }
 
   function drawIdentity(ctx, w, h) {
@@ -936,6 +1146,56 @@
     ctx.restore();
   }
 
+  function drawLockedSegments(ctx, w, h) {
+    if (state.segmentLocks.length === 0) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    const viewStart = state.curveView.xOffset;
+    const viewEnd = viewStart + 360;
+    state.segmentLocks.forEach((lock) => {
+      const span = segmentSpan(lock);
+      if (span < HUE_EPSILON) return;
+      const baseCycle = Math.floor((viewStart - lock.start - span) / 360);
+      for (let cycle = baseCycle; cycle <= baseCycle + 3; cycle += 1) {
+        const start = lock.start + cycle * 360;
+        const end = start + span;
+        if (end < viewStart || start > viewEnd) continue;
+        const drawStart = Math.max(start, viewStart);
+        const drawEnd = Math.min(end, viewEnd);
+        for (let yShift = -3; yShift <= 3; yShift += 1) {
+          ctx.beginPath();
+          let began = false;
+          const steps = Math.max(2, Math.ceil((drawEnd - drawStart) / 2));
+          for (let i = 0; i <= steps; i += 1) {
+            const input = drawStart + (drawEnd - drawStart) * (i / steps);
+            const lift = sampleLiftUnwrapped(input) + yShift * 360;
+            const px = inputToScreenX(input, w);
+            const py = outputToScreenY(lift, h);
+            if (!began) {
+              ctx.moveTo(px, py);
+              began = true;
+            } else {
+              ctx.lineTo(px, py);
+            }
+          }
+          ctx.strokeStyle = yShift === 0 ? "#ffc85f" : "#ffc85f";
+          ctx.globalAlpha = yShift === 0 ? 0.98 : 0.25;
+          ctx.lineWidth = yShift === 0 ? 5.4 : 2;
+          ctx.stroke();
+          if (yShift === 0) {
+            ctx.strokeStyle = "#150a21";
+            ctx.globalAlpha = 0.75;
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+          }
+        }
+      }
+    });
+    ctx.restore();
+  }
+
   function drawControlPoints(ctx, w, h) {
     ctx.save();
     ctx.beginPath();
@@ -952,13 +1212,23 @@
         for (let yShift = -3; yShift <= 3; yShift += 1) {
           const py = outputToScreenY(periodLift + yShift * 360, h);
           if (py < -18 || py > h + 18) continue;
+          const locked = pointInLockedSegment(point);
           ctx.beginPath();
           ctx.arc(px, py, point === state.activePoint ? 9 : 7, 0, Math.PI * 2);
-          ctx.fillStyle = point === state.activePoint ? "#ffc85f" : "#ff65b8";
+          ctx.fillStyle = locked ? "#ffc85f" : (point === state.activePoint ? "#ffc85f" : "#ff65b8");
           ctx.strokeStyle = "#150a21";
           ctx.lineWidth = 3;
           ctx.fill();
           ctx.stroke();
+          if (locked) {
+            ctx.beginPath();
+            ctx.arc(px, py, point === state.activePoint ? 12 : 10, 0, Math.PI * 2);
+            ctx.strokeStyle = "#44e4d2";
+            ctx.globalAlpha = 0.8;
+            ctx.lineWidth = 1.6;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
         }
       }
     });
@@ -984,6 +1254,19 @@
       hue: normalizeAngle(input),
       output: screenYToOutput(clamp(pos.y, 0, h), h)
     };
+  }
+
+  function hitTestSegment(pos) {
+    const coords = pointToHueOutput(pos);
+    const segment = findSegmentAtInput(coords.input);
+    if (!segment) return null;
+    let bestDist = Infinity;
+    for (let yShift = -3; yShift <= 3; yShift += 1) {
+      const lift = sampleLiftUnwrapped(coords.input) + yShift * 360;
+      const py = outputToScreenY(lift, els.curveCanvas.height);
+      bestDist = Math.min(bestDist, Math.abs(pos.y - py));
+    }
+    return bestDist <= SEGMENT_HIT_RADIUS ? segment : null;
   }
 
   function hitTestPoint(pos) {
@@ -1025,9 +1308,36 @@
   }
 
   function handleCurvePointerDown(event) {
-    pushHistory();
     const pos = canvasPoint(event);
+    if (state.segmentLockPickMode) {
+      const segment = hitTestSegment(pos);
+      state.segmentLockPickMode = false;
+      if (segment) {
+        toggleSegmentLock(segment);
+      } else {
+        els.curveStatus.textContent = "no segment picked";
+        updateSegmentLockUi();
+      }
+      drawCurveEditor();
+      event.preventDefault();
+      return;
+    }
+
     let hit = hitTestPoint(pos);
+    if (hit && pointInLockedSegment(hit.point)) {
+      els.curveStatus.textContent = "segment locked";
+      event.preventDefault();
+      return;
+    }
+    const coords = pointToHueOutput(pos);
+    if (!hit && lockIndexForInput(coords.input) !== -1) {
+      els.curveStatus.textContent = "segment locked";
+      event.preventDefault();
+      return;
+    }
+
+    state.dragLockCaptures = captureSegmentLockSegments();
+    pushHistory();
     if (!hit) hit = addPointAt(pos);
     state.activePoint = hit.point;
     state.dragYShift = hit.yShift;
@@ -1054,6 +1364,8 @@
 
   function handleCurvePointerUp(event) {
     if (state.activePoint) {
+      restoreSegmentLockSegments(state.dragLockCaptures);
+      state.dragLockCaptures = null;
       state.activePoint = null;
       markCurveDirty("curve updated");
     }
@@ -1067,8 +1379,14 @@
   function handleCurveDoubleClick(event) {
     const hit = hitTestPoint(canvasPoint(event));
     if (hit && state.curve.points.length > 2) {
+      if (pointInLockedSegment(hit.point)) {
+        els.curveStatus.textContent = "segment locked";
+        return;
+      }
+      const captures = captureSegmentLockSegments();
       pushHistory();
       state.curve.points = state.curve.points.filter((candidate) => candidate !== hit.point);
+      restoreSegmentLockSegments(captures);
       state.activePoint = null;
       markCurveDirty("point deleted");
     }
@@ -1772,7 +2090,8 @@
       degree: state.curve.degree,
       iteration: getIterationCount(),
       colorSpace: els.colorSpace.value,
-      points: state.curve.points.map((point) => ({ x: point.x, y: point.y }))
+      points: state.curve.points.map((point) => ({ x: point.x, y: point.y })),
+      segmentLocks: cloneSegmentLocks()
     };
     downloadText(`${els.filenameInput.value || "dhuenut-curve"}.json`, JSON.stringify(data, null, 2), "application/json");
   }
@@ -1791,10 +2110,17 @@
           y: Number(point.y)
         })).filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
         if (state.curve.points.length < 2) throw new Error("bad points");
+        state.segmentLocks = Array.isArray(data.segmentLocks)
+          ? cloneSegmentLocks(data.segmentLocks.filter((lock) => (
+            Number.isFinite(Number(lock.start)) && Number.isFinite(Number(lock.end))
+          )))
+          : [];
+        state.segmentLockPickMode = false;
         if (Number.isFinite(Number(data.iteration))) setIteration(Number(data.iteration));
         if (data.colorSpace === "hsl" || data.colorSpace === "oklch") els.colorSpace.value = data.colorSpace;
         sortPoints();
         syncCurveInputs();
+        updateSegmentLockUi();
         markCurveDirty("json loaded");
       } catch (error) {
         els.curveStatus.textContent = "json failed";
@@ -1886,6 +2212,7 @@
     state.curve.points = lifted
       .filter((point) => point.x < 360)
       .map((point) => ({ x: point.x, y: point.y }));
+    clearSegmentLocks();
     sortPoints();
     syncCurveInputs();
     markCurveDirty("gahuema imported");
@@ -1936,6 +2263,11 @@
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {
         redo();
         event.preventDefault();
+      } else if (event.key === "Escape" && state.segmentLockPickMode) {
+        state.segmentLockPickMode = false;
+        updateSegmentLockUi();
+        els.curveStatus.textContent = "pick canceled";
+        event.preventDefault();
       }
     });
 
@@ -1971,9 +2303,21 @@
     });
     els.transposeBtn.addEventListener("click", transposeCurve);
     els.showHistogram.addEventListener("change", () => drawCurveEditor());
+    if (els.segmentLockPickBtn) {
+      els.segmentLockPickBtn.addEventListener("click", () => {
+        state.segmentLockPickMode = !state.segmentLockPickMode;
+        els.curveStatus.textContent = state.segmentLockPickMode ? "pick segment" : "ready";
+        updateSegmentLockUi();
+      });
+    }
+    if (els.segmentUnlockAllBtn) {
+      els.segmentUnlockAllBtn.addEventListener("click", unlockAllSegments);
+    }
 
     els.degreeInput.addEventListener("input", () => {
-      state.curve.degree = Math.round(Number(els.degreeInput.value) || 0);
+      mutatePreservingSegmentLocks(() => {
+        state.curve.degree = Math.round(Number(els.degreeInput.value) || 0);
+      });
       syncCurveInputs();
       markCurveDirty("degree changed");
     });

@@ -51,6 +51,7 @@ file server. No build step is required.
 - [x] Click to add control point.
 - [x] Drag to move control point.
 - [x] Double-click to delete a nonessential control point.
+- [x] Segment locking for protected hue ranges.
 - [x] Identity diagonal.
 - [x] Ghost/lift copies of the curve for wrap awareness.
 - [x] Hue axes around the editor.
@@ -198,12 +199,14 @@ Good demo figures:
 
 ## Validation Log
 
-Last checked after the URL-Encoded Curve Sharing implementation on 2026-07-11:
+Last checked after the Segment Locking implementation on 2026-07-12:
 
-- `node --check dhuenut\dhuenut.js` passed.
+- `node --check dhuenut.js` passed.
 - Static DOM ID wiring check passed: every JS `$("id")` reference exists in
   `index.html`.
-- Live browser smoke test was run in this pass (URL state hashing, history replaceState, and onhashchange verified).
+- `git diff --check` passed.
+- In-app browser `file://` smoke test was blocked by browser URL policy; normal
+  browser smoke test remains pending.
 - No persistent local dev server is required or currently running.
 
 ---
@@ -220,6 +223,7 @@ Last checked after the URL-Encoded Curve Sharing implementation on 2026-07-11:
 - [ ] Add keyboard controls for selected points.
 - [ ] Improve mobile/touch ergonomics for point editing.
 - [x] Add URL-encoded curve sharing.
+- [x] Add segment locking for protected hue ranges.
 
 ### Curve And Math Work
 
@@ -297,4 +301,10 @@ Read model: points carry lift `y`, degree explicit, ops mutate points then `mark
 
 Highest value/effort: **5 (twist)**, **2 (recenter)**, **7 (strength)**, **6 (inverse)**, **10 (symmetrize)**. Twist + recenter + strength are ~10 lines each in your point model. Symmetrize + inverse are paper-figure material — both impossible in bounded-offset UIs, strengthen submission claim. 
 
-Let's allow locking of curve segments. everything else around them changes, but user can select a segment to lock it in place. Helpful for colorists etc. 
+Segment locking is now implemented as hue-interval locks. Use **Pick Segment**
+and then click near a curve span to lock or unlock that interval. Locked spans
+are drawn in amber, cannot be directly edited, are included in undo/redo,
+URL sharing, and curve JSON, and are restored after global curve operations by
+sampling the protected interval back into the curve. This keeps a protected hue
+range in place while twists, rotations, strength edits, symmetrization, and
+other broad operations change the surrounding curve.
